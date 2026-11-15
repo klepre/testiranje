@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="sl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Enakomerno gibanje kolesarja</title>
+<meta name="description" content="Interaktivna animacija enakomernega gibanja: kolesar, grafa s(t) in v(t) ter tabela meritev.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+body { margin: 0; }
+[hidden] { display: none !important; }
+/* Layout: cesta z metrsko skalo čez vso širino kot oder, pod njo krmilje, nato grafa in tabela v eni vrsti. */
+:root {
+  --bg: #eef1f5;
+  --surface: #ffffff;
+  --ink: #15202c;
+  --muted: #566475;
+  --line: #d3dae3;
+  --road: #2a3441;
+  --road-ink: #e8edf3;
+  --road-dim: #8b99a9;
+  --a: #cf430a;
+  --a-road: #ff8f52;
+  --b: #1766c2;
+  --b-road: #72b6ff;
+  --display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f141a; --surface: #18202a; --ink: #e9eef4; --muted: #9aa8b8; --line: #2c3745;
+    --road: #222c38; --road-ink: #e8edf3; --road-dim: #8090a2;
+    --a: #ff8f52; --a-road: #ff8f52; --b: #72b6ff; --b-road: #72b6ff;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f141a; --surface: #18202a; --ink: #e9eef4; --muted: #9aa8b8; --line: #2c3745;
+  --road: #222c38; --road-ink: #e8edf3; --road-dim: #8090a2;
+  --a: #ff8f52; --a-road: #ff8f52; --b: #72b6ff; --b-road: #72b6ff;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--body); font-size: 16px; line-height: 1.5;
+  padding-block: 28px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+h1, h2 { font-family: var(--display); text-wrap: balance; margin: 0; line-height: 1.15; }
+h1 { font-size: clamp(1.7rem, 4vw, 2.5rem); font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 1.15rem; font-weight: 700; }
+p { margin: 0; }
+.lead { max-width: 62ch; color: var(--muted); font-size: 1.05rem; }
+header { display: flex; flex-direction: column; gap: 8px; }
+
+.stage { background: var(--road); border-radius: 10px; overflow: hidden; }
+.stage canvas { display: block; width: 100%; }
+canvas { display: block; width: 100%; }
+
+.note { font-size: 1.05rem; min-height: 1.5em; }
+.note b.a { color: var(--a); } .note b.b { color: var(--b); }
+
+.controls { display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: center; }
+.clock { font-family: var(--display); font-weight: 700; font-size: 2.2rem; font-variant-numeric: tabular-nums; min-width: 5.2ch; line-height: 1; }
+.clock small { font-size: 0.5em; color: var(--muted); font-weight: 500; }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; }
+button {
+  font: 600 1rem var(--body); color: var(--ink); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 8px; padding: 10px 16px; cursor: pointer;
+}
+button.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); min-width: 7.5em; }
+button:hover { border-color: var(--muted); }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--b); outline-offset: 2px; }
+
+.sliders { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px 24px; }
+.slider { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.slider label { font-weight: 600; font-variant-numeric: tabular-nums; }
+.slider label span { color: var(--muted); font-weight: 400; }
+.slider input[type=range] { width: 100%; }
+#rowA input { accent-color: var(--a); } #rowB input[type=range] { accent-color: var(--b); }
+.dot { display: inline-block; width: 0.7em; height: 0.7em; border-radius: 50%; margin-right: 6px; }
+.dot.a { background: var(--a); } .dot.b { background: var(--b); }
+.check { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.check input { width: 18px; height: 18px; accent-color: var(--b); }
+.slider.off input[type=range] { opacity: 0.4; }
+
+.data { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 16px; align-items: start; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.panel p { color: var(--muted); font-size: 0.9rem; }
+.panel canvas { height: 250px; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 3px 8px; border-bottom: 1px solid var(--line); }
+th { font-size: 0.85rem; color: var(--muted); font-weight: 600; }
+td.a { color: var(--a); font-weight: 600; } td.b { color: var(--b); font-weight: 600; }
+tr.now td { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+
+.learn { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px 40px; padding-top: 8px; }
+.learn > div { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.learn ul, .learn ol { margin: 0; padding-left: 1.3em; display: flex; flex-direction: column; gap: 6px; max-width: 60ch; }
+.formula { font-family: var(--display); font-size: 1.5rem; font-weight: 700; }
+.formula span { font-family: var(--body); font-size: 1rem; font-weight: 400; color: var(--muted); margin-left: 12px; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>Enakomerno gibanje</h1>
+    <p class="lead">Kolesar vozi naravnost in ves čas enako hitro. Vsako sekundo pusti na cesti piko. Opazuj, kako daleč narazen so pike.</p>
+  </header>
+
+  <div class="stage"><canvas id="track" aria-label="Cesta z metrsko skalo, po kateri vozi kolesar"></canvas></div>
+
+  <p class="note" id="note"></p>
+
+  <div class="controls">
+    <div class="clock" aria-live="off"><span id="clock">0,0</span> <small>s</small></div>
+    <div class="btns">
+      <button class="primary" id="play">Začni</button>
+      <button id="step">Korak +1 s</button>
+      <button id="reset">Na začetek</button>
+    </div>
+  </div>
+
+  <div class="sliders">
+    <div class="slider" id="rowA">
+      <label for="vA"><i class="dot a"></i>Hitrost rdečega: <b id="vAout"></b> <span id="vAkm"></span></label>
+      <input type="range" id="vA" min="1" max="10" step="0.5" value="5">
+    </div>
+    <div class="slider off" id="rowB">
+      <label class="check" for="onB"><input type="checkbox" id="onB"><i class="dot b"></i>Dodaj modrega kolesarja: <b id="vBout"></b> <span id="vBkm" style="font-weight:400;color:var(--muted)"></span></label>
+      <input type="range" id="vB" min="1" max="10" step="0.5" value="8" aria-label="Hitrost modrega kolesarja">
+    </div>
+  </div>
+
+  <div class="data">
+    <div class="panel">
+      <h2>Graf poti s(t)</h2>
+      <canvas id="gs"></canvas>
+      <p>Ravna črta. Čim hitrejši je kolesar, tem bolj strma je.</p>
+    </div>
+    <div class="panel">
+      <h2>Graf hitrosti v(t)</h2>
+      <canvas id="gv"></canvas>
+      <p>Vodoravna črta, ker se hitrost ne spreminja.</p>
+    </div>
+    <div class="panel">
+      <h2>Tabela meritev</h2>
+      <table id="tab"></table>
+    </div>
+  </div>
+
+  <div class="learn">
+    <div>
+      <h2>Kaj opazimo</h2>
+      <ul>
+        <li>Pike so enako daleč narazen. Kolesar v enakih časih prevozi enake poti.</li>
+        <li>Pot enakomerno narašča s časom: v dvakrat daljšem času prevozi dvakrat daljšo pot.</li>
+        <li>Hitrost pove, kolikšno pot prevozi v eni sekundi.</li>
+      </ul>
+      <p class="formula">v = s : t <span id="example"></span></p>
+      <p style="color:var(--muted)">1 m/s = 3,6 km/h</p>
+    </div>
+    <div>
+      <h2>Najprej napovej, potem preveri</h2>
+      <ol>
+        <li>Rdeči vozi s hitrostjo 4 m/s. Kje bo po 7 sekundah?</li>
+        <li>Kolesar v 10 s prevozi 60 m. Kolikšna je njegova hitrost?</li>
+        <li>Modri naj v istem času prevozi dvakrat daljšo pot kot rdeči. Kako se razlikujejo pike in grafa?</li>
+        <li>Kakšne bi bile pike, če bi kolesar pospeševal?</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const TMAX = 10, SMAX = 100;
+  const st = { t: 4, playing: false, vA: 5, vB: 8, onB: false, last: 0 };
+  const fmt = (x, d = 1) => x.toFixed(d).replace('.', ',');
+  const num = x => (Number.isInteger(x) ? String(x) : fmt(x, 1));
+  const FONT = 'Inter, system-ui, sans-serif';
+
+  function css() {
+    const s = getComputedStyle(document.documentElement);
+    const g = n => s.getPropertyValue(n).trim();
+    return { ink: g('--ink'), muted: g('--muted'), line: g('--line'), road: g('--road'), roadInk: g('--road-ink'),
+      roadDim: g('--road-dim'), a: g('--a'), aRoad: g('--a-road'), b: g('--b'), bRoad: g('--b-road'), surface: g('--surface') };
+  }
+  function fit(cv) {
+    const dpr = window.devicePixelRatio || 1;
+    const w = cv.clientWidth, h = cv.clientHeight;
+    if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, h);
+    return [c, w, h];
+  }
+  const riders = () => st.onB ? [{ v: st.vA, k: 'a' }, { v: st.vB, k: 'b' }] : [{ v: st.vA, k: 'a' }];
+
+  function bike(c, x, gy, color, rot, alpha) {
+    c.save(); c.globalAlpha = alpha; c.strokeStyle = color; c.fillStyle = color; c.lineWidth = 2; c.lineCap = 'round'; c.lineJoin = 'round';
+    const r = 9, wy = gy - r;
+    for (const wx of [x - 13, x + 13]) {
+      c.beginPath(); c.arc(wx, wy, r, 0, Math.PI * 2); c.stroke();
+      if (alpha === 1) { c.lineWidth = 1; for (let i = 0; i < 3; i++) { const a = rot + i * Math.PI / 3;
+        c.beginPath(); c.moveTo(wx - Math.cos(a) * r, wy - Math.sin(a) * r); c.lineTo(wx + Math.cos(a) * r, wy + Math.sin(a) * r); c.stroke(); } c.lineWidth = 2; }
+    }
+    c.beginPath(); c.moveTo(x - 13, wy); c.lineTo(x - 5, gy - 27); c.lineTo(x, wy); c.lineTo(x - 13, wy);
+    c.moveTo(x - 5, gy - 27); c.lineTo(x + 9, gy - 27); c.lineTo(x, wy); c.moveTo(x + 9, gy - 29); c.lineTo(x + 13, wy); c.stroke();
+    c.lineWidth = 3; c.beginPath(); c.moveTo(x - 5, gy - 29); c.lineTo(x + 2, gy - 41); c.lineTo(x + 10, gy - 30);
+    c.moveTo(x - 5, gy - 29); c.lineTo(x + 2, gy - 17); c.lineTo(x, wy); c.stroke();
+    c.beginPath(); c.arc(x + 5, gy - 47, 4.5, 0, Math.PI * 2); c.fill();
+    c.restore();
+  }
+
+  function drawTrack() {
+    const cv = $('track'), rs = riders(), LANE = 100, RULER = 36;
+    cv.style.height = (rs.length * LANE + RULER + 6) + 'px';
+    const [c, W, H] = fit(cv), C = css();
+    const pl = 30, pr = 30, ppm = (W - pl - pr) / SMAX, X = m => pl + m * ppm;
+    const n = Math.floor(st.t + 1e-6);
+    rs.forEach((r, i) => {
+      const y0 = 6 + i * LANE, gy = y0 + 54, dy = gy + 10, col = r.k === 'a' ? C.aRoad : C.bRoad, gap = r.v * ppm;
+      c.strokeStyle = C.roadDim; c.lineWidth = 1; c.beginPath(); c.moveTo(pl - 22, gy + 0.5); c.lineTo(W - pr + 22, gy + 0.5); c.stroke();
+      if (i > 0) { c.setLineDash([10, 10]); c.globalAlpha = 0.5; c.beginPath(); c.moveTo(0, y0 - 2); c.lineTo(W, y0 - 2); c.stroke(); c.setLineDash([]); c.globalAlpha = 1; }
+      // stroboskopske pike
+      c.fillStyle = col; c.strokeStyle = col; c.textAlign = 'center';
+      for (let k = 0; k <= n; k++) {
+        const x = X(r.v * k);
+        if (gap >= 46 && k < st.t - 0.6) bike(c, x, gy, col, 0, 0.22);
+        c.beginPath(); c.arc(x, dy, 4, 0, Math.PI * 2); c.fill();
+        if (gap >= 26) { c.font = '500 12px ' + FONT; c.fillStyle = C.roadInk; c.fillText(k + ' s', x, dy + 18); c.fillStyle = col; }
+        if (k > 0) {
+          c.lineWidth = 1.5; c.beginPath(); c.moveTo(X(r.v * (k - 1)) + 6, dy); c.lineTo(x - 6, dy); c.stroke();
+          if (gap >= 40) { c.font = '600 12px ' + FONT; c.fillText(num(r.v) + ' m', x - gap / 2, dy + 33); }
+        }
+      }
+      const s = r.v * st.t;
+      bike(c, X(s), gy, col, s * ppm / 9, 1);
+    });
+    // metrska skala
+    const ry = 6 + rs.length * LANE;
+    c.strokeStyle = C.roadInk; c.fillStyle = C.roadInk; c.lineWidth = 1; c.textAlign = 'center'; c.font = '500 12px ' + FONT;
+    c.beginPath(); c.moveTo(X(0), ry + 0.5); c.lineTo(X(SMAX), ry + 0.5); c.stroke();
+    for (let m = 0; m <= SMAX; m += (ppm >= 6 ? 1 : 5)) {
+      const big = m % 10 === 0, mid = m % 5 === 0, x = Math.round(X(m)) + 0.5;
+      c.globalAlpha = big ? 1 : 0.55; c.beginPath(); c.moveTo(x, ry); c.lineTo(x, ry + (big ? 10 : mid ? 7 : 4)); c.stroke();
+      if (big) c.fillText(m === SMAX ? m + ' m' : m, x, ry + 25);
+    }
+    c.globalAlpha = 1;
+  }
+
+  function drawGraph(id, ymax, ystep, ylab, fn, dots) {
+    const [c, W, H] = fit($(id)), C = css();
+    const l = 38, r = 14, t = 22, b = 30, X = s => l + s / TMAX * (W - l - r), Y = v => H - b - v / ymax * (H - t - b);
+    c.font = '500 12px ' + FONT; c.lineWidth = 1;
+    for (let s = 0; s <= TMAX; s++) { c.strokeStyle = C.line; c.beginPath(); c.moveTo(Math.round(X(s)) + 0.5, t); c.lineTo(Math.round(X(s)) + 0.5, H - b); c.stroke();
+      if (s % 2 === 0) { c.fillStyle = C.muted; c.textAlign = 'center'; c.fillText(s, X(s), H - b + 16); } }
+    for (let v = 0; v <= ymax; v += ystep) { c.strokeStyle = C.line; c.beginPath(); c.moveTo(l, Math.round(Y(v)) + 0.5); c.lineTo(W - r, Math.round(Y(v)) + 0.5); c.stroke();
+      c.fillStyle = C.muted; c.textAlign = 'right'; c.fillText(v, l - 6, Y(v) + 4); }
+    c.strokeStyle = C.ink; c.lineWidth = 1.5; c.beginPath(); c.moveTo(l, t - 6); c.lineTo(l, H - b); c.lineTo(W - r, H - b); c.stroke();
+    c.fillStyle = C.ink; c.font = '600 12px ' + FONT; c.textAlign = 'left'; c.fillText(ylab, l + 6, t - 8);
+    c.textAlign = 'right'; c.fillText('t [s]', W - r, H - 4);
+    riders().forEach(rd => {
+      const col = rd.k === 'a' ? C.a : C.b;
+      c.strokeStyle = col; c.fillStyle = col; c.lineWidth = 3; c.lineCap = 'round';
+      c.beginPath(); c.moveTo(X(0), Y(fn(rd.v, 0))); c.lineTo(X(st.t), Y(fn(rd.v, st.t))); c.stroke();
+      if (dots) for (let k = 0; k <= Math.floor(st.t + 1e-6); k++) { c.beginPath(); c.arc(X(k), Y(fn(rd.v, k)), 4, 0, Math.PI * 2); c.fill(); }
+      c.beginPath(); c.arc(X(st.t), Y(fn(rd.v, st.t)), 5.5, 0, Math.PI * 2); c.fill();
+      c.strokeStyle = C.surface; c.lineWidth = 2; c.stroke();
+    });
+  }
+
+  let tabKey = '';
+  function drawTable() {
+    const n = Math.floor(st.t + 1e-6), key = [n, st.vA, st.vB, st.onB].join('|');
+    if (key === tabKey) return; tabKey = key;
+    let h = '<tr><th>t [s]</th><th>s rdeči [m]</th>' + (st.onB ? '<th>s modri [m]</th>' : '') + '</tr>';
+    for (let k = 0; k <= TMAX; k++) {
+      const on = k <= n;
+      h += '<tr' + (k === n ? ' class="now"' : '') + '><td>' + k + '</td><td class="a">' + (on ? num(st.vA * k) : '') + '</td>' +
+        (st.onB ? '<td class="b">' + (on ? num(st.vB * k) : '') + '</td>' : '') + '</tr>';
+    }
+    $('tab').innerHTML = h;
+  }
+
+  function drawText() {
+    $('clock').textContent = fmt(st.t, 1);
+    $('vAout').textContent = num(st.vA) + ' m/s'; $('vAkm').textContent = '(' + num(+(st.vA * 3.6).toFixed(1)) + ' km/h)';
+    $('vBout').textContent = num(st.vB) + ' m/s'; $('vBkm').textContent = '(' + num(+(st.vB * 3.6).toFixed(1)) + ' km/h)';
+    const n = Math.floor(st.t + 1e-6);
+    let s = '<b class="a">Rdeči</b> vsako sekundo prevozi ' + num(st.vA) + ' m.';
+    if (n > 0) s += ' Po ' + n + ' s je prevozil ' + n + ' · ' + num(st.vA) + ' m = <b class="a">' + num(st.vA * n) + ' m</b>.';
+    if (st.onB) { s += ' <b class="b">Modri</b> vsako sekundo prevozi ' + num(st.vB) + ' m'; s += n > 0 ? ', po ' + n + ' s je pri <b class="b">' + num(st.vB * n) + ' m</b>.' : '.'; }
+    $('note').innerHTML = s;
+    const k = Math.max(n, 1);
+    $('example').textContent = 'rdeči: ' + num(st.vA * k) + ' m : ' + k + ' s = ' + num(st.vA) + ' m/s';
+    $('play').textContent = st.playing ? 'Ustavi' : st.t >= TMAX ? 'Znova' : st.t > 0 ? 'Nadaljuj' : 'Začni';
+    $('rowB').classList.toggle('off', !st.onB);
+  }
+
+  function draw() {
+    drawTrack();
+    drawGraph('gs', 100, 20, 's [m]', (v, t) => v * t, true);
+    drawGraph('gv', 10, 2, 'v [m/s]', v => v, false);
+    drawTable(); drawText();
+  }
+
+  function frame(now) {
+    if (!st.playing) return;
+    st.t = Math.min(TMAX, st.t + Math.min(0.1, (now - st.last) / 1000)); st.last = now;
+    if (st.t >= TMAX) st.playing = false;
+    draw();
+    if (st.playing) requestAnimationFrame(frame);
+  }
+  function play() { if (st.t >= TMAX) st.t = 0; st.playing = true; st.last = performance.now(); requestAnimationFrame(frame); }
+  function stop() { st.playing = false; draw(); }
+
+  $('play').onclick = () => st.playing ? stop() : play();
+  $('step').onclick = () => { st.playing = false; st.t = st.t >= TMAX ? TMAX : Math.floor(st.t + 1e-6) + 1; draw(); };
+  $('reset').onclick = () => { st.playing = false; st.t = 0; draw(); };
+  const changed = () => { if (st.playing) { st.playing = false; st.t = 0; } draw(); };
+  $('vA').oninput = e => { st.vA = +e.target.value; changed(); };
+  $('vB').oninput = e => { st.vB = +e.target.value; if (!st.onB) { st.onB = true; $('onB').checked = true; } changed(); };
+  $('onB').onchange = e => { st.onB = e.target.checked; changed(); };
+
+  st.vA = +$('vA').value; st.vB = +$('vB').value; st.onB = $('onB').checked;
+  new ResizeObserver(draw).observe(document.querySelector('.wrap'));
+  new MutationObserver(draw).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', draw);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
+  draw();
+})();
+</script>
+
+</body></html>
